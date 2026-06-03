@@ -2,6 +2,12 @@
 
 Mobile-first MVP for logging newborn feeding, diaper, sleep, and pumping activity.
 
+> ⚡ Vibe coded with Codex & Claude  — built fast, shipped faster, zero regrets
+
+## Live App
+
+🔗 https://baby-activity-tracker-smoky.vercel.app/
+
 ## Run Locally
 
 ```bash
@@ -21,8 +27,8 @@ The app runs in demo mode when Supabase env vars are missing. To enable real per
 4. Fill in:
 
 ```bash
-SUPABASE_URL=...
-SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
 5. In Supabase Auth providers, enable Google OAuth.
