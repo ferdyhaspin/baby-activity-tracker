@@ -7,11 +7,17 @@ import { cn } from "@/lib/utils";
 
 type ActivityModalProps = {
   activityType: ActivityType | null;
+  isSaving?: boolean;
   onClose: () => void;
-  onSave: (draft: ActivityDraft) => void;
+  onSave: (draft: ActivityDraft) => void | Promise<void>;
 };
 
-export function ActivityModal({ activityType, onClose, onSave }: ActivityModalProps) {
+export function ActivityModal({
+  activityType,
+  isSaving = false,
+  onClose,
+  onSave,
+}: ActivityModalProps) {
   const [feedType, setFeedType] = useState<"breastfeeding" | "bottle">("breastfeeding");
   const [side, setSide] = useState<"left" | "right" | "both">("left");
   const [duration, setDuration] = useState(12);
@@ -36,9 +42,9 @@ export function ActivityModal({ activityType, onClose, onSave }: ActivityModalPr
 
   if (!activityType) return null;
 
-  function save() {
+  async function save() {
     if (activityType === "feeding") {
-      onSave({
+      await onSave({
         type: "feeding",
         metadata:
           feedType === "breastfeeding"
@@ -48,7 +54,7 @@ export function ActivityModal({ activityType, onClose, onSave }: ActivityModalPr
     }
 
     if (activityType === "diaper") {
-      onSave({
+      await onSave({
         type: "diaper",
         metadata: {
           diaperType,
@@ -63,13 +69,13 @@ export function ActivityModal({ activityType, onClose, onSave }: ActivityModalPr
       if (!activeSleepStart) {
         const startTime = now.toISOString();
         setActiveSleepStart(startTime);
-        onSave({ type: "sleep", metadata: { startTime } });
+        await onSave({ type: "sleep", metadata: { startTime } });
       } else {
         const durationMinutes = Math.max(
           1,
           Math.round((now.getTime() - new Date(activeSleepStart).getTime()) / 60000),
         );
-        onSave({
+        await onSave({
           type: "sleep",
           metadata: {
             startTime: activeSleepStart,
@@ -82,7 +88,7 @@ export function ActivityModal({ activityType, onClose, onSave }: ActivityModalPr
     }
 
     if (activityType === "pumping") {
-      onSave({
+      await onSave({
         type: "pumping",
         metadata: {
           leftMl,
@@ -218,11 +224,16 @@ export function ActivityModal({ activityType, onClose, onSave }: ActivityModalPr
 
         <button
           className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-[8px] bg-cream-50 text-lg font-black text-ink-950 shadow-soft transition hover:bg-peach-100 active:scale-[0.98]"
+          disabled={isSaving}
           onClick={save}
           type="button"
         >
           <Check className="h-5 w-5" />
-          {activityType === "sleep" && !activeSleepStart ? "Start Sleep" : "Save"}
+          {isSaving
+            ? "Saving..."
+            : activityType === "sleep" && !activeSleepStart
+              ? "Start Sleep"
+              : "Save"}
         </button>
       </section>
     </div>

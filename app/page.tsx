@@ -1,5 +1,10 @@
 import { BabyTrackerApp } from "@/components/BabyTrackerApp";
+import { getAppData } from "@/lib/data";
 
-export default function Home() {
-  return <BabyTrackerApp />;
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const data = await getAppData();
+
+  return <BabyTrackerApp initialData={data} />;
 }

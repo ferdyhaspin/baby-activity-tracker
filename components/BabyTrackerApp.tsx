@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createActivityAction } from "@/app/actions";
 import { Settings } from "lucide-react";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
@@ -8,13 +9,19 @@ import { DailySummary } from "@/components/DailySummary";
 import { QuickActions } from "@/components/QuickActions";
 import { ActivityModal } from "@/components/ActivityModal";
 import { Timeline } from "@/components/Timeline";
-import { demoBaby, seedActivities } from "@/lib/mock-data";
 import { formatBabyAge } from "@/lib/utils";
+import type { AppData } from "@/lib/data";
 import type { Activity, ActivityDraft, ActivityType } from "@/lib/types";
 
-export function BabyTrackerApp() {
-  const [activities, setActivities] = useState<Activity[]>(seedActivities);
+type BabyTrackerAppProps = {
+  initialData: AppData;
+};
+
+export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
+  const [activities, setActivities] = useState<Activity[]>(initialData.activities);
   const [activeAction, setActiveAction] = useState<ActivityType | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const baby = initialData.baby;
 
   const sortedActivities = useMemo(
     () =>
@@ -24,18 +31,15 @@ export function BabyTrackerApp() {
     [activities],
   );
 
-  function saveActivity(draft: ActivityDraft) {
-    setActivities((current) => [
-      {
-        id: crypto.randomUUID(),
-        babyId: demoBaby.id,
-        timestamp:
-          draft.type === "sleep" ? draft.metadata.startTime : new Date().toISOString(),
-        ...draft,
-      },
-      ...current,
-    ]);
-    setActiveAction(null);
+  async function saveActivity(draft: ActivityDraft) {
+    setIsSaving(true);
+    try {
+      const savedActivity = await createActivityAction(draft, baby.id);
+      setActivities((current) => [savedActivity, ...current]);
+      setActiveAction(null);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -44,10 +48,10 @@ export function BabyTrackerApp() {
         <div>
           <p className="text-sm font-semibold text-peach-200">Baby Activity Tracker</p>
           <h1 className="mt-1 font-display text-4xl font-semibold text-cream-50">
-            {demoBaby.name}
+            {baby.name}
           </h1>
           <p className="mt-1 text-sm text-cream-300">
-            {formatBabyAge(demoBaby.birthDate)} · Today
+            {formatBabyAge(baby.birthDate)} · Today
           </p>
         </div>
         <Link
@@ -88,6 +92,7 @@ export function BabyTrackerApp() {
       <AppNav />
       <ActivityModal
         activityType={activeAction}
+        isSaving={isSaving}
         onClose={() => setActiveAction(null)}
         onSave={saveActivity}
       />

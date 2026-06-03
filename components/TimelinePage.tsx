@@ -4,20 +4,19 @@ import { useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { PageHeader } from "@/components/PageHeader";
 import { Timeline } from "@/components/Timeline";
-import { seedActivities } from "@/lib/mock-data";
-import type { ActivityType } from "@/lib/types";
+import type { Activity, ActivityType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const filters: Array<"all" | ActivityType> = ["all", "feeding", "sleep", "diaper", "pumping"];
 
-export function TimelinePage() {
+export function TimelinePage({ activities: initialActivities }: { activities: Activity[] }) {
   const [filter, setFilter] = useState<"all" | ActivityType>("all");
   const activities = useMemo(
     () =>
-      seedActivities
+      initialActivities
         .filter((activity) => filter === "all" || activity.type === filter)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
-    [filter],
+    [filter, initialActivities],
   );
 
   return (
