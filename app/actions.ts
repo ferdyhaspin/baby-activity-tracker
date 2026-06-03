@@ -100,17 +100,17 @@ export async function upsertBabyAction(
 
   const query = babyId
     ? supabase
-        .from("babies")
-        .update({ name, birth_date: birthDate, gender })
-        .eq("id", babyId)
-        .eq("user_id", user.id)
-        .select("*")
-        .single()
+      .from("babies")
+      .update({ name, birth_date: birthDate, gender })
+      .eq("id", babyId)
+      .eq("user_id", user.id)
+      .select("*")
+      .single()
     : supabase
-        .from("babies")
-        .insert({ name, birth_date: birthDate, gender, user_id: user.id })
-        .select("*")
-        .single();
+      .from("babies")
+      .insert({ name, birth_date: birthDate, gender, user_id: user.id })
+      .select("*")
+      .single();
 
   const { data, error } = await query;
 
@@ -134,7 +134,9 @@ export async function signInWithGoogleAction() {
     throw new Error("Supabase client is not available");
   }
 
-  const origin = headers().get("origin") ?? "http://localhost:3000";
+  const origin = process.env.NEXT_PUBLIC_SITE_URL
+    ?? headers().get("origin");
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
