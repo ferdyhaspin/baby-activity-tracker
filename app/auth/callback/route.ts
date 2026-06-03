@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureBabyId } from "@/lib/babies";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -8,7 +9,17 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = createClient();
-    await supabase?.auth.exchangeCodeForSession(code);
+    const { error } = (await supabase?.auth.exchangeCodeForSession(code)) ?? {};
+
+    if (!error) {
+      const {
+        data: { user },
+      } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
+
+      if (user) {
+        await ensureBabyId(user.id);
+      }
+    }
   }
 
   return NextResponse.redirect(new URL(next, request.url));

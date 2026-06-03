@@ -1,8 +1,14 @@
-import { demoBaby, seedActivities } from "@/lib/mock-data";
 import { hasSupabaseEnv } from "@/lib/env";
 import { mapActivity, mapBaby } from "@/lib/mappers";
 import { createClient } from "@/lib/supabase/server";
 import type { Activity, Baby } from "@/lib/types";
+
+const defaultBaby: Baby = {
+  id: "",
+  name: "My Baby",
+  birthDate: new Date().toISOString().split("T")[0],
+  gender: "other",
+};
 
 export type AppData = {
   baby: Baby;
@@ -17,8 +23,8 @@ export async function getAppData(): Promise<AppData> {
 
   if (!isSupabaseConfigured || !supabase) {
     return {
-      baby: demoBaby,
-      activities: seedActivities,
+      baby: defaultBaby,
+      activities: [],
       isAuthenticated: false,
       isSupabaseConfigured,
     };
@@ -30,8 +36,8 @@ export async function getAppData(): Promise<AppData> {
 
   if (!user) {
     return {
-      baby: demoBaby,
-      activities: seedActivities,
+      baby: defaultBaby,
+      activities: [],
       isAuthenticated: false,
       isSupabaseConfigured,
     };
@@ -47,7 +53,7 @@ export async function getAppData(): Promise<AppData> {
 
   if (!babyRow) {
     return {
-      baby: demoBaby,
+      baby: defaultBaby,
       activities: [],
       isAuthenticated: true,
       isSupabaseConfigured,

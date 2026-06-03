@@ -21,6 +21,7 @@ export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
   const [activities, setActivities] = useState<Activity[]>(initialData.activities);
   const [activeAction, setActiveAction] = useState<ActivityType | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const baby = initialData.baby;
 
   const sortedActivities = useMemo(
@@ -33,10 +34,14 @@ export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
 
   async function saveActivity(draft: ActivityDraft) {
     setIsSaving(true);
+    setSaveError(null);
     try {
       const savedActivity = await createActivityAction(draft, baby.id);
       setActivities((current) => [savedActivity, ...current]);
       setActiveAction(null);
+    } catch (error) {
+      setActiveAction(null);
+      setSaveError(error instanceof Error ? error.message : "Failed to save activity");
     } finally {
       setIsSaving(false);
     }
@@ -64,6 +69,12 @@ export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
       </header>
 
       <DailySummary activities={activities} />
+
+      {saveError ? (
+        <p className="mb-1 mt-3 rounded-[8px] border border-peach-300/30 bg-peach-300/10 p-3 text-sm font-semibold text-peach-100">
+          {saveError}
+        </p>
+      ) : null}
 
       <section className="mt-5">
         <div className="mb-3 flex items-center justify-between">

@@ -3,19 +3,25 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { demoBaby } from "@/lib/mock-data";
+import { ensureBabyId } from "@/lib/babies";
 import { hasSupabaseEnv } from "@/lib/env";
-import { mapActivity, mapBaby } from "@/lib/mappers";
+import { mapActivity } from "@/lib/mappers";
 import { createClient } from "@/lib/supabase/server";
 import type { Activity, ActivityDraft } from "@/lib/types";
+
+export type SettingsFormState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
 
 export async function createActivityAction(
   draft: ActivityDraft,
   babyId?: string,
 ): Promise<Activity> {
+  const normalizedBabyId = babyId?.trim() || undefined;
   const fallback: Activity = {
     id: crypto.randomUUID(),
-    babyId: babyId ?? demoBaby.id,
+    babyId: normalizedBabyId ?? "local-baby",
     type: draft.type,
     timestamp: draft.type === "sleep" ? draft.metadata.startTime : new Date().toISOString(),
     metadata: draft.metadata,
@@ -30,9 +36,11 @@ export async function createActivityAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return fallback;
+  if (!user) {
+    throw new Error("Please sign in before saving activities to Supabase");
+  }
 
-  const resolvedBabyId = babyId ?? (await ensureBabyId(user.id));
+  const resolvedBabyId = normalizedBabyId ?? (await ensureBabyId(user.id));
 
   const { data, error } = await supabase
     .from("activities")
@@ -57,50 +65,63 @@ export async function createActivityAction(
   return mapActivity(data);
 }
 
-export async function upsertBabyAction(formData: FormData): Promise<void> {
+export async function upsertBabyAction(
+  _previousState: SettingsFormState,
+  formData: FormData,
+): Promise<SettingsFormState> {
   const name = String(formData.get("name") ?? "").trim();
   const birthDate = String(formData.get("birthDate") ?? "").trim();
   const babyId = String(formData.get("babyId") ?? "").trim();
+  const genderValue = String(formData.get("gender") ?? "").trim();
+  const gender = ["male", "female", "other"].includes(genderValue)
+    ? (genderValue as "male" | "female" | "other")
+    : null;
 
   if (!name || !birthDate) {
-    throw new Error("Baby name and birth date are required");
+    return { status: "error", message: "Baby name and birth date are required." };
   }
 
-  if (!hasSupabaseEnv()) return;
+  if (!hasSupabaseEnv()) {
+    return { status: "error", message: "Supabase env vars are not configured." };
+  }
 
   const supabase = createClient();
-  if (!supabase) return;
+  if (!supabase) {
+    return { status: "error", message: "Supabase client is not available." };
+  }
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return;
+  if (!user) {
+    return { status: "error", message: "Please sign in before saving baby profile." };
+  }
 
   const query = babyId
     ? supabase
         .from("babies")
-        .update({ name, birth_date: birthDate })
+        .update({ name, birth_date: birthDate, gender })
         .eq("id", babyId)
         .eq("user_id", user.id)
         .select("*")
         .single()
     : supabase
         .from("babies")
-        .insert({ name, birth_date: birthDate, user_id: user.id })
+        .insert({ name, birth_date: birthDate, gender, user_id: user.id })
         .select("*")
         .single();
 
   const { data, error } = await query;
 
   if (error || !data) {
-    throw new Error(error?.message ?? "Failed to save baby profile");
+    return { status: "error", message: error?.message ?? "Failed to save baby profile." };
   }
 
   revalidatePath("/");
   revalidatePath("/settings");
 
-  mapBaby(data);
+  return { status: "success", message: "Baby profile saved." };
 }
 
 export async function signInWithGoogleAction() {
@@ -136,36 +157,4 @@ export async function signOutAction() {
 
   revalidatePath("/");
   redirect("/");
-}
-
-async function ensureBabyId(userId: string) {
-  const supabase = createClient();
-  if (!supabase) return demoBaby.id;
-
-  const { data: existing } = await supabase
-    .from("babies")
-    .select("id")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (existing?.id) return existing.id;
-
-  const { data, error } = await supabase
-    .from("babies")
-    .insert({
-      user_id: userId,
-      name: demoBaby.name,
-      birth_date: demoBaby.birthDate,
-      gender: demoBaby.gender ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    throw new Error(error?.message ?? "Failed to create baby profile");
-  }
-
-  return data.id;
 }
