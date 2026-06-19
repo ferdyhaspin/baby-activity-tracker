@@ -2,6 +2,7 @@ import { Baby, Droplets, Milk, Moon, Waves } from "lucide-react";
 import type { ActivityType } from "@/lib/types";
 
 type QuickActionsProps = {
+  hasActiveSleep?: boolean;
   onSelect: (type: ActivityType) => void;
 };
 
@@ -18,7 +19,7 @@ const actions: Array<{
   { type: "diaper", label: "Poop", icon: Baby, className: "bg-amber-300 text-ink-950" },
 ];
 
-export function QuickActions({ onSelect }: QuickActionsProps) {
+export function QuickActions({ hasActiveSleep = false, onSelect }: QuickActionsProps) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {actions.map((action, index) => (
@@ -31,7 +32,7 @@ export function QuickActions({ onSelect }: QuickActionsProps) {
           type="button"
         >
           <action.icon className="h-6 w-6" />
-          {action.label}
+          {action.type === "sleep" && hasActiveSleep ? "End Sleep" : action.label}
         </button>
       ))}
     </div>

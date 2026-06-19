@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 type ActivityModalProps = {
   activityType: ActivityType | null;
+  activeSleepStart?: string | null;
   isSaving?: boolean;
   onClose: () => void;
   onSave: (draft: ActivityDraft) => void | Promise<void>;
@@ -14,6 +15,7 @@ type ActivityModalProps = {
 
 export function ActivityModal({
   activityType,
+  activeSleepStart = null,
   isSaving = false,
   onClose,
   onSave,
@@ -30,7 +32,6 @@ export function ActivityModal({
   const [rightMl, setRightMl] = useState(70);
   const [painNote, setPainNote] = useState("");
   const [engorgedNote, setEngorgedNote] = useState("");
-  const [activeSleepStart, setActiveSleepStart] = useState<string | null>(null);
 
   const title = useMemo(() => {
     if (activityType === "feeding") return "Log feeding";
@@ -68,7 +69,6 @@ export function ActivityModal({
       const now = new Date();
       if (!activeSleepStart) {
         const startTime = now.toISOString();
-        setActiveSleepStart(startTime);
         await onSave({ type: "sleep", metadata: { startTime } });
       } else {
         const durationMinutes = Math.max(
@@ -83,7 +83,6 @@ export function ActivityModal({
             duration: durationMinutes,
           },
         });
-        setActiveSleepStart(null);
       }
     }
 
@@ -233,7 +232,9 @@ export function ActivityModal({
             ? "Saving..."
             : activityType === "sleep" && !activeSleepStart
               ? "Start Sleep"
-              : "Save"}
+              : activityType === "sleep"
+                ? "End Sleep"
+                : "Save"}
         </button>
       </section>
     </div>

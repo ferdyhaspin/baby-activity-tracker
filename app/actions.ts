@@ -7,7 +7,7 @@ import { ensureBabyId } from "@/lib/babies";
 import { hasSupabaseEnv } from "@/lib/env";
 import { mapActivity } from "@/lib/mappers";
 import { createClient } from "@/lib/supabase/server";
-import type { Activity, ActivityDraft } from "@/lib/types";
+import type { Activity, ActivityDraft, SleepMeta } from "@/lib/types";
 
 export type SettingsFormState = {
   status: "idle" | "success" | "error";
@@ -41,6 +41,44 @@ export async function createActivityAction(
   }
 
   const resolvedBabyId = normalizedBabyId ?? (await ensureBabyId(user.id));
+
+  if (draft.type === "sleep" && draft.metadata.endTime) {
+    const sleepMeta = draft.metadata as SleepMeta;
+    const { data: existingSleep } = await supabase
+      .from("activities")
+      .select("id")
+      .eq("baby_id", resolvedBabyId)
+      .eq("user_id", user.id)
+      .eq("type", "sleep")
+      .eq("metadata->>startTime", sleepMeta.startTime)
+      .is("metadata->>endTime", null)
+      .order("timestamp", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingSleep?.id) {
+      const { data, error } = await supabase
+        .from("activities")
+        .update({
+          timestamp: sleepMeta.startTime,
+          metadata: sleepMeta,
+        })
+        .eq("id", existingSleep.id)
+        .eq("user_id", user.id)
+        .select("*")
+        .single();
+
+      if (error || !data) {
+        throw new Error(error?.message ?? "Failed to end sleep activity");
+      }
+
+      revalidatePath("/");
+      revalidatePath("/timeline");
+      revalidatePath("/analytics");
+
+      return mapActivity(data);
+    }
+  }
 
   const { data, error } = await supabase
     .from("activities")

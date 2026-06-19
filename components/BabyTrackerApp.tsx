@@ -11,7 +11,7 @@ import { ActivityModal } from "@/components/ActivityModal";
 import { Timeline } from "@/components/Timeline";
 import { formatBabyAge } from "@/lib/utils";
 import type { AppData } from "@/lib/data";
-import type { Activity, ActivityDraft, ActivityType } from "@/lib/types";
+import type { Activity, ActivityDraft, ActivityType, SleepMeta } from "@/lib/types";
 
 type BabyTrackerAppProps = {
   initialData: AppData;
@@ -31,13 +31,31 @@ export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
       ),
     [activities],
   );
+  const activeSleep = sortedActivities.find(isOpenSleep);
 
   async function saveActivity(draft: ActivityDraft) {
     setIsSaving(true);
     setSaveError(null);
     try {
       const savedActivity = await createActivityAction(draft, baby.id);
-      setActivities((current) => [savedActivity, ...current]);
+      setActivities((current) => {
+        if (savedActivity.type !== "sleep" || !(savedActivity.metadata as SleepMeta).endTime) {
+          return [savedActivity, ...current];
+        }
+
+        const savedSleepMeta = savedActivity.metadata as SleepMeta;
+        const replaced = current.map((activity) => {
+          if (activity.id === savedActivity.id) return savedActivity;
+          if (isOpenSleep(activity) && (activity.metadata as SleepMeta).startTime === savedSleepMeta.startTime) {
+            return savedActivity;
+          }
+          return activity;
+        });
+
+        return replaced.some((activity) => activity.id === savedActivity.id)
+          ? replaced
+          : [savedActivity, ...replaced];
+      });
       setActiveAction(null);
     } catch (error) {
       setActiveAction(null);
@@ -85,7 +103,7 @@ export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
             2 taps
           </span>
         </div>
-        <QuickActions onSelect={setActiveAction} />
+        <QuickActions hasActiveSleep={Boolean(activeSleep)} onSelect={setActiveAction} />
       </section>
 
       <section className="mt-6 flex-1">
@@ -102,6 +120,7 @@ export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
 
       <AppNav />
       <ActivityModal
+        activeSleepStart={(activeSleep?.metadata as SleepMeta | undefined)?.startTime ?? null}
         activityType={activeAction}
         isSaving={isSaving}
         onClose={() => setActiveAction(null)}
@@ -109,4 +128,8 @@ export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
       />
     </main>
   );
+}
+
+function isOpenSleep(activity: Activity) {
+  return activity.type === "sleep" && !(activity.metadata as SleepMeta).endTime;
 }
