@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { deleteActivityAction } from "@/app/actions";
 import { AppNav } from "@/components/AppNav";
 import { PageHeader } from "@/components/PageHeader";
 import { Timeline } from "@/components/Timeline";
@@ -10,14 +11,33 @@ import { cn } from "@/lib/utils";
 const filters: Array<"all" | ActivityType> = ["all", "feeding", "sleep", "diaper", "pumping"];
 
 export function TimelinePage({ activities: initialActivities }: { activities: Activity[] }) {
+  const [allActivities, setAllActivities] = useState<Activity[]>(initialActivities);
   const [filter, setFilter] = useState<"all" | ActivityType>("all");
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const activities = useMemo(
     () =>
-      initialActivities
+      allActivities
         .filter((activity) => filter === "all" || activity.type === filter)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
-    [filter, initialActivities],
+    [allActivities, filter],
   );
+
+  async function deleteActivity(activity: Activity) {
+    const confirmed = window.confirm("Delete this activity?");
+    if (!confirmed) return;
+
+    setDeletingActivityId(activity.id);
+    setDeleteError(null);
+    try {
+      await deleteActivityAction(activity.id);
+      setAllActivities((current) => current.filter((item) => item.id !== activity.id));
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete activity");
+    } finally {
+      setDeletingActivityId(null);
+    }
+  }
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-[430px] px-4 pb-28 pt-5">
@@ -41,7 +61,16 @@ export function TimelinePage({ activities: initialActivities }: { activities: Ac
           ))}
         </div>
       </div>
-      <Timeline activities={activities} />
+      {deleteError ? (
+        <p className="mb-3 rounded-[8px] border border-peach-300/30 bg-peach-300/10 p-3 text-sm font-semibold text-peach-100">
+          {deleteError}
+        </p>
+      ) : null}
+      <Timeline
+        activities={activities}
+        deletingActivityId={deletingActivityId}
+        onDelete={deleteActivity}
+      />
       <AppNav />
     </main>
   );

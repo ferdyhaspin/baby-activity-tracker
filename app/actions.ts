@@ -103,6 +103,40 @@ export async function createActivityAction(
   return mapActivity(data);
 }
 
+export async function deleteActivityAction(activityId: string): Promise<void> {
+  const normalizedActivityId = activityId.trim();
+  if (!normalizedActivityId) {
+    throw new Error("Activity id is required");
+  }
+
+  if (!hasSupabaseEnv()) return;
+
+  const supabase = createClient();
+  if (!supabase) return;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Please sign in before deleting activities");
+  }
+
+  const { error } = await supabase
+    .from("activities")
+    .delete()
+    .eq("id", normalizedActivityId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/timeline");
+  revalidatePath("/analytics");
+}
+
 export async function upsertBabyAction(
   _previousState: SettingsFormState,
   formData: FormData,
