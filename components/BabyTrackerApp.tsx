@@ -37,7 +37,14 @@ export function BabyTrackerApp({ initialData }: BabyTrackerAppProps) {
     setIsSaving(true);
     setSaveError(null);
     try {
-      const savedActivity = await createActivityAction(draft, baby.id);
+      const result = await createActivityAction(draft, baby.id);
+      if (!result.ok) {
+        setSaveError(result.error);
+        setActiveAction(null);
+        return;
+      }
+
+      const savedActivity = result.data;
       setActivities((current) => {
         if (savedActivity.type !== "sleep" || !(savedActivity.metadata as SleepMeta).endTime) {
           return [savedActivity, ...current];

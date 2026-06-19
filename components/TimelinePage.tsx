@@ -30,7 +30,12 @@ export function TimelinePage({ activities: initialActivities }: { activities: Ac
     setDeletingActivityId(activity.id);
     setDeleteError(null);
     try {
-      await deleteActivityAction(activity.id);
+      const result = await deleteActivityAction(activity.id);
+      if (!result.ok) {
+        setDeleteError(result.error);
+        return;
+      }
+
       setAllActivities((current) => current.filter((item) => item.id !== activity.id));
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Failed to delete activity");

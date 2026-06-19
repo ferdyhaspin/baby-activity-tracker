@@ -14,127 +14,142 @@ export type SettingsFormState = {
   message: string;
 };
 
+export type ActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
+
+export type ActivityActionResult = ActionResult<Activity>;
+export type DeleteActionResult = ActionResult<null>;
+
 export async function createActivityAction(
   draft: ActivityDraft,
   babyId?: string,
-): Promise<Activity> {
-  const normalizedBabyId = babyId?.trim() || undefined;
-  const fallback: Activity = {
-    id: crypto.randomUUID(),
-    babyId: normalizedBabyId ?? "local-baby",
-    type: draft.type,
-    timestamp: draft.type === "sleep" ? draft.metadata.startTime : new Date().toISOString(),
-    metadata: draft.metadata,
-  };
+): Promise<ActivityActionResult> {
+  try {
+    const normalizedBabyId = babyId?.trim() || undefined;
+    const fallback: Activity = {
+      id: crypto.randomUUID(),
+      babyId: normalizedBabyId ?? "local-baby",
+      type: draft.type,
+      timestamp: draft.type === "sleep" ? draft.metadata.startTime : new Date().toISOString(),
+      metadata: draft.metadata,
+    };
 
-  if (!hasSupabaseEnv()) return fallback;
+    if (!hasSupabaseEnv()) return { ok: true, data: fallback };
 
-  const supabase = createClient();
-  if (!supabase) return fallback;
+    const supabase = createClient();
+    if (!supabase) return { ok: true, data: fallback };
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    throw new Error("Please sign in before saving activities to Supabase");
-  }
+    if (!user) {
+      return { ok: false, error: "Please sign in before saving activities." };
+    }
 
-  const resolvedBabyId = normalizedBabyId ?? (await ensureBabyId(user.id));
+    const resolvedBabyId = normalizedBabyId ?? (await ensureBabyId(user.id));
 
-  if (draft.type === "sleep" && draft.metadata.endTime) {
-    const sleepMeta = draft.metadata as SleepMeta;
-    const { data: existingSleep } = await supabase
-      .from("activities")
-      .select("id")
-      .eq("baby_id", resolvedBabyId)
-      .eq("user_id", user.id)
-      .eq("type", "sleep")
-      .eq("metadata->>startTime", sleepMeta.startTime)
-      .is("metadata->>endTime", null)
-      .order("timestamp", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existingSleep?.id) {
-      const { data, error } = await supabase
+    if (draft.type === "sleep" && draft.metadata.endTime) {
+      const sleepMeta = draft.metadata as SleepMeta;
+      const { data: existingSleep, error: existingSleepError } = await supabase
         .from("activities")
-        .update({
-          timestamp: sleepMeta.startTime,
-          metadata: sleepMeta,
-        })
-        .eq("id", existingSleep.id)
+        .select("id")
+        .eq("baby_id", resolvedBabyId)
         .eq("user_id", user.id)
-        .select("*")
-        .single();
+        .eq("type", "sleep")
+        .eq("metadata->>startTime", sleepMeta.startTime)
+        .is("metadata->>endTime", null)
+        .order("timestamp", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error || !data) {
-        throw new Error(error?.message ?? "Failed to end sleep activity");
+      if (existingSleepError) {
+        return { ok: false, error: existingSleepError.message };
       }
 
-      revalidatePath("/");
-      revalidatePath("/timeline");
-      revalidatePath("/analytics");
+      if (existingSleep?.id) {
+        const { data, error } = await supabase
+          .from("activities")
+          .update({
+            timestamp: sleepMeta.startTime,
+            metadata: sleepMeta,
+          })
+          .eq("id", existingSleep.id)
+          .eq("user_id", user.id)
+          .select("*")
+          .single();
 
-      return mapActivity(data);
+        if (error || !data) {
+          return { ok: false, error: error?.message ?? "Failed to end sleep activity." };
+        }
+
+        revalidateActivityPaths();
+
+        return { ok: true, data: mapActivity(data) };
+      }
     }
+
+    const { data, error } = await supabase
+      .from("activities")
+      .insert({
+        baby_id: resolvedBabyId,
+        user_id: user.id,
+        type: draft.type,
+        timestamp: fallback.timestamp,
+        metadata: draft.metadata,
+      })
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "Failed to create activity." };
+    }
+
+    revalidateActivityPaths();
+
+    return { ok: true, data: mapActivity(data) };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error, "Failed to save activity.") };
   }
-
-  const { data, error } = await supabase
-    .from("activities")
-    .insert({
-      baby_id: resolvedBabyId,
-      user_id: user.id,
-      type: draft.type,
-      timestamp: fallback.timestamp,
-      metadata: draft.metadata,
-    })
-    .select("*")
-    .single();
-
-  if (error || !data) {
-    throw new Error(error?.message ?? "Failed to create activity");
-  }
-
-  revalidatePath("/");
-  revalidatePath("/timeline");
-  revalidatePath("/analytics");
-
-  return mapActivity(data);
 }
 
-export async function deleteActivityAction(activityId: string): Promise<void> {
-  const normalizedActivityId = activityId.trim();
-  if (!normalizedActivityId) {
-    throw new Error("Activity id is required");
+export async function deleteActivityAction(activityId: string): Promise<DeleteActionResult> {
+  try {
+    const normalizedActivityId = activityId.trim();
+    if (!normalizedActivityId) {
+      return { ok: false, error: "Activity id is required." };
+    }
+
+    if (!hasSupabaseEnv()) return { ok: true, data: null };
+
+    const supabase = createClient();
+    if (!supabase) return { ok: true, data: null };
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { ok: false, error: "Please sign in before deleting activities." };
+    }
+
+    const { error } = await supabase
+      .from("activities")
+      .delete()
+      .eq("id", normalizedActivityId)
+      .eq("user_id", user.id);
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+
+    revalidateActivityPaths();
+
+    return { ok: true, data: null };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error, "Failed to delete activity.") };
   }
-
-  if (!hasSupabaseEnv()) return;
-
-  const supabase = createClient();
-  if (!supabase) return;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("Please sign in before deleting activities");
-  }
-
-  const { error } = await supabase
-    .from("activities")
-    .delete()
-    .eq("id", normalizedActivityId)
-    .eq("user_id", user.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/");
-  revalidatePath("/timeline");
-  revalidatePath("/analytics");
 }
 
 export async function upsertBabyAction(
@@ -196,14 +211,20 @@ export async function upsertBabyAction(
   return { status: "success", message: "Baby profile saved." };
 }
 
-export async function signInWithGoogleAction() {
+export async function signInWithGoogleAction(
+  previousState: SettingsFormState,
+  formData: FormData,
+): Promise<SettingsFormState> {
+  void previousState;
+  void formData;
+
   if (!hasSupabaseEnv()) {
-    throw new Error("Supabase env vars are not configured");
+    return { status: "error", message: "Supabase env vars are not configured." };
   }
 
   const supabase = createClient();
   if (!supabase) {
-    throw new Error("Supabase client is not available");
+    return { status: "error", message: "Supabase client is not available." };
   }
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL
@@ -217,7 +238,7 @@ export async function signInWithGoogleAction() {
   });
 
   if (error || !data.url) {
-    throw new Error(error?.message ?? "Failed to start Google sign in");
+    return { status: "error", message: error?.message ?? "Failed to start Google sign in." };
   }
 
   redirect(data.url);
@@ -231,4 +252,14 @@ export async function signOutAction() {
 
   revalidatePath("/");
   redirect("/");
+}
+
+function revalidateActivityPaths() {
+  revalidatePath("/");
+  revalidatePath("/timeline");
+  revalidatePath("/analytics");
+}
+
+function getActionErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
 }

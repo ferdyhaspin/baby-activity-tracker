@@ -15,6 +15,7 @@ import type { AppData } from "@/lib/data";
 export function SettingsPage({ data }: { data: AppData }) {
   const initialState: SettingsFormState = { status: "idle", message: "" };
   const [state, formAction] = useFormState(upsertBabyAction, initialState);
+  const [authState, signInAction] = useFormState(signInWithGoogleAction, initialState);
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-[430px] px-4 pb-28 pt-5">
@@ -64,18 +65,34 @@ export function SettingsPage({ data }: { data: AppData }) {
         <SaveButton />
       </form>
 
-      <form
-        action={data.isAuthenticated ? signOutAction : signInWithGoogleAction}
-        className="mt-4"
-      >
-        <button
-          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[8px] border border-peach-300/40 bg-peach-300/10 text-base font-black text-peach-100 transition active:scale-[0.98]"
-          type="submit"
-        >
-          <LogOut className="h-5 w-5" />
-          {data.isAuthenticated ? "Sign out" : "Sign in with Google"}
-        </button>
-      </form>
+      {data.isAuthenticated ? (
+        <form action={signOutAction} className="mt-4">
+          <button
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[8px] border border-peach-300/40 bg-peach-300/10 text-base font-black text-peach-100 transition active:scale-[0.98]"
+            type="submit"
+          >
+            <LogOut className="h-5 w-5" />
+            Sign out
+          </button>
+        </form>
+      ) : (
+        <form action={signInAction} className="mt-4">
+          <button
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[8px] border border-peach-300/40 bg-peach-300/10 text-base font-black text-peach-100 transition active:scale-[0.98]"
+            type="submit"
+          >
+            <LogOut className="h-5 w-5" />
+            Sign in with Google
+          </button>
+        </form>
+      )}
+
+      {authState.status === "error" ? (
+        <p className="mt-3 flex items-center gap-2 rounded-[8px] border border-peach-300/30 bg-peach-300/10 p-3 text-sm font-semibold text-peach-100">
+          <XCircle className="h-4 w-4 shrink-0" />
+          {authState.message}
+        </p>
+      ) : null}
 
       {!data.isSupabaseConfigured ? (
         <p className="mt-4 rounded-[8px] border border-white/10 bg-white/7 p-3 text-sm font-semibold text-cream-300">
