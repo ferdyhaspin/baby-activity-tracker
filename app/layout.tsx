@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { PwaRegistration } from "@/components/PwaRegistration";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -16,10 +17,20 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Baby Activity Tracker",
   description: "Fast newborn feeding, diaper, sleep, and pumping tracker.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "BabyTracker",
+  },
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#111827",
 };
 
 export default function RootLayout({
@@ -32,6 +43,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <PwaRegistration />
         {children}
       </body>
     </html>
